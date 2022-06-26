@@ -1,0 +1,31 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "AleA:lib"
+
+    - path: "./app/Main.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./app/CodeGen.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./app/ListUtil.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./app/Options.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./app/Parser.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./app/PrettyLog.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./app/Types.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./app/Paths_AleA.hs"
+      component: "AleA:exe:alea"
+
+    - path: "./test"
+      component: "AleA:test:alea-test"
