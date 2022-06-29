@@ -5,5 +5,7 @@ extra-deps:
 # - llvm-tf-12.0.0.1@sha256:7907c46c5100d444b3b229dc5c673c84fbe9189bb3d599a60182bf620daeeda5,6417
 - llvm-ffi-13.0@sha256:b2256a958e57e95b0a95db72c69e0eb6a82837043eae00c9778ba09bbd460d31,12386
 - llvm-tf
+- git: https://github.com/Bodigrim/linear-builder
+  commit: 565410063c47556a86e7da244b99e0536f01037e
 
 resolver: lts-19.12

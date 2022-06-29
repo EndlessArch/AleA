@@ -51,6 +51,6 @@ parseLine line =
             let (t, ret) = parseExpression $ pack line
             in do
                 case ret of
-                    ParseSuccess expr -> sayLn $ show expr
-                    ParseFail msg     -> putStrLn $ "Error!: " ++ msg
+                    ReturnSuccess expr _ -> sayLn $ show expr
+                    ReturnFail msg _ -> putStrLn $ "Error!: " ++ msg
                 when (null t) $ parseLine (unpack t)

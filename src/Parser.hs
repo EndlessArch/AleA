@@ -14,7 +14,8 @@ import Data.Text hiding
   )
 import Data.Tuple.Extra
 import Prelude hiding
-  ( drop
+  ( all
+  , drop
   , elem
   , head
   , init
@@ -30,323 +31,128 @@ import PrettyLog
 import ListUtil
 import qualified Data.Foldable as Prelude
 import Control.Monad
-import Data.Char (isNumber)
+import Data.Char (isNumber, isAlphaNum)
 
 import Debug.Trace (trace)
+import Data.List (sortBy)
+import Data.Text.Lazy.Builder (Builder, fromString, fromText)
 
-data Priority
-  = I -- Macro
-  | II
-  | III
-  deriving (Eq, Show)
+type Priority = Float
 
-instance Ord Priority where
-  II < I = True
-  III < II = True
-  _ < _ = False
+-- return ordering but as flipped priority
+rtnExprOrd :: ReturnExpr -> ReturnExpr -> Ordering
+rtnExprOrd (_, x) (_, y)
+  = case x of
+    ReturnSuccess ex px
+      ->  case y of
+          ReturnSuccess ey py -> compare py px
+          ReturnFail _ _ -> LT
+    ReturnFail _ px
+      ->  case y of
+          ReturnSuccess _ _ -> GT
+          ReturnFail _ py -> compare py px
 
-  I <= I = True
-  II <= II = True
-  III <= III = True
-  a <= b = a < b
+data ReturnStatus a
+  = ReturnSuccess a Priority
+  | ReturnFail String Priority
 
-data ParserReturnState a b
-  = ReturnSuccess a
-  | InvalidArgs String b
-  | ReturnFail String
-  deriving (Show)
+class ShowValue a where
+  showVal :: a -> String
 
--- parse Text which start's with parenthesis
-parseBracket :: (Text, Text) -> Text -> (Text, Text)
-parseBracket (b1, b2) s
-  | b1 `isInfixOf` s && b2 `isInfixOf` s =
-    let s' = strip s in
-      if not $ b1 `isPrefixOf` s' then
-        ("", s)
-      else
-        let l = length b1
-            s'1 = drop l s'
-            -- s'2 = dropEnd (length b2) s'1
-            (s'2, s'r) = splitWith b2 s'1
-            in (stripStart s'2, s'r)
-  | otherwise = ("", s)
+instance (Show a) => ShowValue (ReturnStatus a) where
+  showVal (ReturnSuccess e p)
+    = "RtnSuc (" ++ show e ++ " | " ++ show p ++ ")"
+  showVal (ReturnFail s p)
+    = "RtnFail: " ++ s ++ " | " ++ show p ++ ")"
 
--- ( ~ )
-parseParen :: Text -> (Text, Text)
-parseParen = parseBracket ("(", ")")
+type ReturnExpr = (Text, ReturnStatus Expr)
 
--- {| ~ |}
-parseBrace :: Text -> (Text, Text)
-parseBrace = parseBracket ("{|", "|}")
+instance ShowValue ReturnExpr where
+  showVal (r, rs) = show r ++ ", " ++ showVal rs
 
-parseIdentifier :: Text -> (Text, Text)
-parseIdentifier "" = ("", "")
-parseIdentifier s =
-  let s' = strip s
-  in both strip $ splitWith " " s'
+parseExpression :: Text -> ReturnExpr
+parseExpression ""
+  = ("", ReturnFail "Unable to parse expression; No input given" 1.0)
 
-intParser :: Text -> ParserReturnState (Expr, Priority) ()
-intParser s =
-  let s' = strip s
-      rm = readMaybe . unpack :: Text -> Maybe Integer
-    in case rm s' of
-      Nothing ->
-        if Data.Text.null s'
-          then ReturnFail "No any input given"
-        else
-          if isNumber $ head s'
-            then InvalidArgs "Invalid integer expression" ()
-          else ReturnFail "Not an integer expression at all"
-      Just x -> ReturnSuccess (Int x, II)
+-- NOTE: `s` isn't null
+parseExpression s = do
+  let parsers = getParserList
+      (s1, s2) = wordParser s
+      parsed = map ($ (s1, s2)) parsers
+      topPriorityExpr :: [ReturnExpr] = sortBy rtnExprOrd parsed -- sortAsPriority parsed
 
-fpParser :: Text -> ParserReturnState (Expr, Priority) ()
-fpParser s =
-  let s' = strip s
-      rm = readMaybe . unpack :: Text -> Maybe Double
-    in case rm s' of
-      Nothing ->
-        if Data.Text.null s'
-          then ReturnFail "No any input given"
-        else
-          if isNumber (head s') || '.' == head s'
-            then InvalidArgs "Expected floating point expression" ()
-          else ReturnFail "Not a floating point expression at all"
-      Just x -> ReturnSuccess (Float x, III)
+  case topPriorityExpr of
+    (a:b:_)
+          -> if rtnExprOrd a b == EQ then
+        ( ""
+        , ReturnFail
+          ("Ambigous expression ("
+          ++ showVal a ++ " | " ++ showVal b ++ ")") 1.0)
+        else a
+    -- something happened which should not be
+    [] -> ("", ReturnFail "No any parser activated (Internal)" 100.0)
+    _ -> topPriorityExpr!!1
 
-getBasicFunction :: Text -> Maybe BasicFunction
-getBasicFunction s = let s' = strip s in
-  let nullExpr :: Expr = Var ""
-  in case s' of
-    "__call"  -> Just $ Call "" nullExpr
-    "__df"    -> Just $ Define "" ""
-    "__sbs"   -> Just $ Substitute "" ""
-    "__df_sys"  -> Just $ DefineSystem "" nullExpr
-    "__im_sys"  -> Just $ ImportSystem ""
-    "__rdf_sys" -> Just $ RedefineSystem "" ""
-    "__dfun"  -> Just $ DefineFunction [] "" nullExpr
-    "__mkvar" -> Just $ MakeVariable "" Nothing
-    "__rmvar" -> Just $ RemoveVariable ""
-    "__if"  -> Just $ IF nullExpr nullExpr nullExpr
-    "__hk"  -> Just $ Hook "" nullExpr
-    _ -> Nothing
+getParserList :: [(Text, Text) -> ReturnExpr]
+getParserList
+  = -- map (wordParser <&>)
+    [ numberValueParser
+    , variableParser
+    -- , lambdaParser -- 
+    -- , operatorParser -- 80.0
+    -- , namedFunctionParser -- 80.0
+    -- , macroParser -- 100.0
+    ]
 
--- ( (only applied to ->) "A -> B -> C" )
-parseCurryType :: Text -> Maybe [Tp]
-parseCurryType s
-  | not $ "->" `isInfixOf` s =
-    let f = findType $ strip s
-    in case f of
-      Just tp -> Just [tp]
-      Nothing -> Nothing
+data ParenStruct
+  = Text | ParenStruct
+
+-- NOTE: `t` contains at least one '('
+parseParen :: Text -> (Text, Text | (Text -> (Text, Tex)))
+parseParen t
+  | (!) $ '(' `isInfixOf` t = [("", t)]
   | otherwise
-  = let tps = splitOn "->" $ strip s
-    in
-      if Prelude.null tps
-        then Nothing
-      else
-        let m = map (findType . strip) tps
-        in if any isNothing m
-          then Nothing
-        else
-          Just $ catMaybes m
+  = let (a, b) = splitWith '(' t
+        (a', b') = (stripEnd a, stripStart b)
+    in '(' `isInfixOf` b'
+    | True -> parseParen
 
--- String parameter should be strip-ed
--- __func EXPR optional EXPR...
-basicFunctionParser :: Text -> ParserReturnState (Text, Expr, Priority) Text
-basicFunctionParser s =
-  if not $ "__" `isPrefixOf` s then
-    ReturnFail "Not a function at all"
-  else
-    let (fKind, s'r) = parseIdentifier s
-        (fTypes, s'r') = parseParen s'r
-        f = getBasicFunction $ strip fKind
-    in case f of
-      Nothing ->
-        InvalidArgs ("Unexpected function name, '" ++ unpack fKind ++ "'") s'r'
-      Just f' ->
-        case f' of
-          DefineFunction {} ->
-            let maybeType = parseCurryType fTypes
-            in
-              case maybeType of
-                Just tp ->
-                  let (fName, s'r'') = parseIdentifier s'r' in
-                  if Data.Text.null fName
-                    then InvalidArgs "No function name given" s'r''
-                  else
-                    let (s', exp) = parseExpression s'r''
-                    in case exp of
-                      ParseSuccess expr
-                        -> ReturnSuccess (s'r, Function $ DefineFunction tp fName expr, I)
-                      ParseFail e
-                        -> InvalidArgs ("Unable to parse expression; " ++ e) s'
-                Nothing ->
-                  if Data.Text.null fTypes
-                    then InvalidArgs "No function type given" s'r'
-                  else InvalidArgs ("Unexpected function type, '" ++ unpack fTypes ++ "'") s'r'
-          _ -> ReturnFail "Other functions are not implemented yet" -- TODO: Impl
-  where
-    nullF = Function $ Call "" $ Var ""
+wordParser :: Text -> (Text, Text)
+wordParser a b =
+  let (c, d) = splitWith a b
+  in if '(' `isInfixOf` c
+    then parseParen a
+  else (c, d)
 
-isOpBegin :: Text -> Bool
-isOpBegin s =
-  case unpack s of
-    ('(':_:')':_) -> True
-    ('(':_:_:')':_) -> True
-    _ -> False
+numberValueParser :: (Text, Text) -> ReturnExpr
+numberValueParser (s, rs)
+  = let intParser = readMaybe . unpack :: Text -> Maybe Integer
+        fpParser = readMaybe . unpack :: Text -> Maybe Double
+        rtn = case intParser s of
+          Just i -> ReturnSuccess (Int i)
+          Nothing -> case fpParser s of
+            Just f -> ReturnSuccess (Float f)
+            Nothing -> ReturnFail "Failed to parse number"
+  in (rs, rtn 5.0)
 
--- (OP) EXPR optional EXPR
-basicOperatorParser :: Text -> ParserReturnState (Text, Expr, Priority) Text
-basicOperatorParser s =
-  let s' = strip s
-      (s1, s2) = splitWith ")" s'
-      op = tail s1
-  in
-    if isOpBegin s' then
-      let uo = UnaryOp
-          (s'r, p'exp1) = parseExpression s2
-          (s'r', p'exp2) = parseExpression s'r
-          bo b = BinaryOp b (Type $ Untyped "") (Type $ Untyped "") in -- postpone constructing binary op
+variableParser :: (Text, Text) -> ReturnExpr
+variableParser (s, rs)
+  = let rtn
+          = if isNumber (head s) && all isAlphaNum (tail s)
+              then ReturnSuccess (Var s)
+            else ReturnFail "Unexpected identifier"
+    in (rs, rtn 1.0)
 
-          let op' = case op of
-                      "++" -> uo Increment $ Var ""
-                      "--" -> uo Decrement $ Var ""
-                      "^^" -> uo Square $ Var ""
+following :: Text -> Text -> ReturnStatus (Text, Text)
+following a b
+  = let (c, d) = splitWith a b
+        (e, f) = (stripEnd c, stripStart d)
+    in if e == "" then ReturnFail ("Expected " ++ b)
+    else (e, f)
 
-                      "+" -> bo Add
-                      "-" -> bo Sub
-                      "*" -> bo Mul
-                      "/" -> bo Div
-                      "%" -> bo Mod
-                      "^" -> bo Pow
-                      "=="  -> bo Eq
-                      "!="  -> bo NEq
+-- (|\a -> )
 
-                      _ -> NOp in
-          case op' of
-            UnaryOp u'o _ ->
-              if Data.Text.null s2
-                then let ut = Untyped "a" in
-                  ReturnSuccess
-                  ( ""
-                  , Function
-                    $ Lambda [ut, ut]
-                    $ Operator (UnaryOp u'o (Hole 1)), II)
-              else case p'exp1 of
-                ParseSuccess exp1 ->
-                  ReturnSuccess
-                    ( s'r
-                    , Operator $ UnaryOp u'o exp1, II)
-                ParseFail e -> ReturnFail e
-            BinaryOp b'o _ _ ->
-              if Data.Text.null s2
-                then let ut = Untyped "a" in
-                  ReturnSuccess
-                  ( ""
-                  , Function
-                    $ Lambda [ut, ut, ut]
-                    $ Operator (BinaryOp b'o (Hole 1) (Hole 2)), II)
-              else
-                case p'exp1 of
-                  ParseSuccess exp1 ->
-                    if Data.Text.null s'r then
-                      let h = getNextHole exp1
-                          t = getNextHoleType exp1
-                          mt = getType exp1
-                      in case mt of
-                        [] ->
-                          InvalidArgs
-                            ("Failed to find type of " ++ show exp1)
-                            s'r
-                        mt' ->
-                         ReturnSuccess
-                          ( ""
-                          , Function
-                            $ Lambda (mt' ++ [t, t])
-                            $ Operator (BinaryOp b'o exp1 h), II)
-                    else
-                      case p'exp2 of
-                        ParseSuccess exp2 ->
-                          ReturnSuccess
-                            ( s'r'
-                            , Operator $ BinaryOp b'o exp1 exp2, II)
-                        ParseFail e -> ReturnFail e
-                  ParseFail e
-                    -> let ut = Untyped "a" in
-                      ReturnSuccess
-                      ( ""
-                      , Function
-                        $ Lambda [ut, ut, ut]
-                        $ Operator (BinaryOp b'o (Hole 1) (Hole 2)), II)
-            NOp ->
-              InvalidArgs ("Invalid unary operator, '" ++ unpack op ++ "'") s'r
-    else
-      ReturnFail "Not an operator expression"
-
--- Similar like maybe, but has message if failed parsing
-data ParseException a = ParseSuccess a | ParseFail String -- deriving Show
-
-instance (Show a) => Show (ParseException a) where
-  show (ParseSuccess a) = show a
-  show (ParseFail s)    = show s
-
-instance Exception (ParseException Expr)
-
-parseExpression :: Text -> (Text, ParseException Expr)
-parseExpression s =
-  let pipe :: (Text, Text)
-        -> (Text -> ParserReturnState (Expr, Priority) ())
-        -> ParserReturnState (Text, Expr, Priority) Text
-        = (\(t, t'r) f ->
-          case f t of
-            ReturnSuccess (e, p) -> ReturnSuccess (t'r, e, p)
-            InvalidArgs s _ -> InvalidArgs s t'r
-            ReturnFail e -> ReturnFail e
-        )
-      availableParsers =
-        [ parseIdentifier <&> (`pipe` intParser)
-        , parseIdentifier <&> (`pipe` fpParser)
-        , parseIdentifier <&> (`pipe` (\t ->
-          if Data.Text.null t then ReturnFail "Failed to parse identifier"
-          else ReturnSuccess (Var t, III)))
-        , basicFunctionParser
-        , basicOperatorParser
-          ] :: [Text -> ParserReturnState (Text, Expr, Priority) Text]
-      parseResults = map ($ s) availableParsers
-      in
-        if Prelude.null parseResults then
-          ( ""
-          , ParseFail $ "Failed to parse \"" ++ unpack (strip s) ++ "\"")
-        else
-          let (s, e) :: (String, Maybe Expr)
-                = filterResultByPriorities parseResults
-            in case e of
-              Just expr -> (pack s, ParseSuccess expr)
-              Nothing -> ("", ParseFail s)
-
-filterResultByPriorities
-  :: [ParserReturnState (Text, Expr, Priority) Text]
-  -> (String, Maybe Expr)
-filterResultByPriorities [] = ("", Nothing)
-filterResultByPriorities [ReturnSuccess (t, e, p)] = (unpack t, Just e)
-filterResultByPriorities [InvalidArgs s t] = (unpack t, Nothing)
-filterResultByPriorities [ReturnFail s] = (s, Nothing)
-
-filterResultByPriorities (ReturnSuccess (t, e, p):a:ss)
-  = case a of
-      ReturnSuccess (t1, e1, p1)
-        | p1 < p -> filterResultByPriorities $ ReturnSuccess (t, e, p):ss
-        | p1 > p -> filterResultByPriorities $ ReturnSuccess (t1, e1, p1):ss
-        | otherwise -> ("Ambigous expression", Nothing)
-      _ -> filterResultByPriorities $ ReturnSuccess (t, e, p):ss
-
-filterResultByPriorities (InvalidArgs s1 t:ReturnFail s2:ss)
-  = filterResultByPriorities $ InvalidArgs s1 t:ss
-
-filterResultByPriorities (InvalidArgs s t:ss)
-  = let (t', me) = filterResultByPriorities ss
-    in case me of
-      Just e -> (t' ++ unpack t, Just e)
-      Nothing -> (t' ++ unpack t, Nothing)
-
-filterResultByPriorities (ReturnFail s1:ss) = filterResultByPriorities ss
+-- lambdaParser :: (Text, Text) -> ReturnExpr
+-- lambdaParser (s, rs)
+--   = let rtn
+--     = 
