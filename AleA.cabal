@@ -9,7 +9,7 @@ version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/AleA#readme>
 homepage:       https://github.com/githubuser/AleA#readme
 bug-reports:    https://github.com/githubuser/AleA/issues
-author:         Author name here
+author:         Endless Arch
 maintainer:     example@example.com
 copyright:      2022 Author name here
 license:        BSD3
@@ -44,6 +44,7 @@ library
     , process
     , split
     , text
+    , text-builder
   default-language: Haskell2010
 
 executable alea
@@ -64,6 +65,7 @@ executable alea
     , process
     , split
     , text
+    , text-builder
   default-language: Haskell2010
 
 test-suite alea-test
@@ -84,4 +86,5 @@ test-suite alea-test
     , process
     , split
     , text
+    , text-builder
   default-language: Haskell2010

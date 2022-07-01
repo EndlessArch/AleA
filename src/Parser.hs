@@ -36,6 +36,7 @@ import Data.Char (isNumber, isAlphaNum)
 import Debug.Trace (trace)
 import Data.List (sortBy)
 import Data.Text.Lazy.Builder (Builder, fromString, fromText)
+import Text.Builder
 
 type Priority = Float
 
@@ -104,24 +105,32 @@ getParserList
     -- , macroParser -- 100.0
     ]
 
-data ParenStruct
-  = Text | ParenStruct
+data PT'
+  = PText Text | ParenTree
+
+type ParenTree = [PT']
 
 -- NOTE: `t` contains at least one '('
-parseParen :: Text -> (Text, Text | (Text -> (Text, Tex)))
+parseParen :: Text -> (Text, ParenTree)
 parseParen t
-  | (!) $ '(' `isInfixOf` t = [("", t)]
+  | not $ run (char '(') `isInfixOf` t = ("", [PText t])
   | otherwise
-  = let (a, b) = splitWith '(' t
+  = let (a, b) = splitWith (singleton '(') t
         (a', b') = (stripEnd a, stripStart b)
-    in '(' `isInfixOf` b'
-    | True -> parseParen
+    in if singleton '(' `isInfixOf` b' then
+      let (c, d) = parseParen b'
+      in (a', d ++ [PText c])
+    else (a', [PText b'])
 
 wordParser :: Text -> (Text, Text)
 wordParser a b =
   let (c, d) = splitWith a b
-  in if '(' `isInfixOf` c
-    then parseParen a
+  in if singleton '(' `isInfixOf` c
+    then
+      let pt = parseParen a
+          
+    in do
+
   else (c, d)
 
 numberValueParser :: (Text, Text) -> ReturnExpr

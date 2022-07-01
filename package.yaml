@@ -2,7 +2,7 @@ name:                AleA
 version:             0.1.0.0
 github:              "githubuser/AleA"
 license:             BSD3
-author:              "Author name here"
+author:              "Endless Arch"
 maintainer:          "example@example.com"
 copyright:           "2022 Author name here"
 
@@ -28,6 +28,9 @@ dependencies:
 - process
 - split
 - text
+- text-builder
+# - text == 2.0
+# - text-builder-linear == 0.1
 
 library:
   source-dirs: src
