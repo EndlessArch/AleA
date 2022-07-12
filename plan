@@ -1,0 +1,135 @@
+__call FUNCTIONNAME ([PARAMS])
+
+# are evaluated recursively until the unit comes out
+__df {| FROM |} {| TO |}
+# define system, error if `SYSTEMNAME` is already defined
+__df_sys SYSTEMNAME SYSTEMS
+# import system
+__im_sys SYSTEMNAME [SYSLIST]
+# redefine system, usage is same as `__df_sys`
+__rdf_sys
+
+# substitute, has the highest evaluation priority
+__sbs {| FROM |} {| TO |}
+
+# function composition
+# __dot f g # = f . g
+(.)
+
+# Types are form of curry
+__dfun TYPE BODY=[COMMANDLIST]
+
+__mkvar TYPE NAME optional VALUE
+__rmvar TYPE NAME
+
+__if DO_TRUE DO_FALSE
+
+__template ?
+
+; <- comment
+;;; idf: type ; identifier type which processed inside the compiler
+;;; str: type ; string between double quotes
+;;; expr: '{':str:'}' = { ~ } ; String between {, }
+
+;;; lambda: (|\f. (|\a. f a) )
+
+; for `it` of `cont` where f
+; == map f cont
+; where map has type of (a -> b) -> [a] -> [b]
+(__defkeyword `for`
+  :following (
+    (it: idf) "of" (cont: idf) "where" (f: expr) )
+  :eval_as (map (|\it. f it) cont)
+)
+
+; (defun someFunc ()
+;   :let (
+;         a = 'a'
+;         b = "b" )
+;   :in (
+;     (foo a)
+;     (bar b) )
+; )
+; 와 같이 사용 가능한 let에 대해
+(__df my-let-substitution
+  :from (
+    "let" (defs: [expr])
+    "in" (f: expr)  )
+  :to (
+    ":let(" defs
+    "):in(" f ")" )
+)
+
+; 또는 이런 if 문에 대해
+; :if (cond) :then (True) :else (False)
+(__df my-if-definition
+  :from (
+    "if" (p: expr)
+    "then" (f: expr)
+    (:optional "else" (g: expr))
+  )
+  :to (
+    ":if " p
+    ":then " f
+    ; isNotNull? :: a -> Bool
+    ; <> = (++) in haskell
+    (:case (!isNull? g) (<> ":else " g))
+  )
+)
+
+(defun simple-sort (list: [a]) ; haskell-like type signature
+  for i of list where
+    for j of list[i:] where ; python-like list handling
+      if (< list[i] list[j])
+      then (swap list[i] list[j])
+)
+; 이런 식으로 유용하게 매크로를 사용할 수 있어요!
+
+(__df my-forall-system
+  :from (
+    "forall" (a: idf)
+  )
+)
+
+(__dfun `org-expr` (body: expr)
+  let
+    exps: [str] = split expr '\n'
+  in
+    for exp of exps where
+      ; :at-least (pred) (True) (False)
+      :at-least (not "") exp ()
+        (:)
+      let (a, b) = splitOnce exp ':'
+      in
+  )
+)
+
+(__defsystem `myClassSystem`
+
+)
+
+(__defkeyword `class`
+  :following (clsName: idf) (clsBody: expr)
+  :eval_as (__find_system `myClassSystem`
+            :with expr (org-expr expr))
+  )
+
+####
+
+__df
+  {| IDF :: CURRYTYPE IDF = [\~FUNCBODY~/] |}
+  {| __dfun CURRYTYPE IDF FUNCBODY |}
+
+__df
+  {| CONST => CURRYTYPE |}
+
+add :: (Integral i) => i -> i -> i
+add = (+)
+
+__hk hs (__im_system Haskell)
+__df_system Haskell
+  [
+    __im_sys CurryType
+    __im_sys 
+  ]
+

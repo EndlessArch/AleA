@@ -24,11 +24,13 @@ dependencies:
 - containers
 - extra
 - llvm-tf
+- megaparsec
 - pretty
 - process
 - split
 - text
 - text-builder
+
 # - text == 2.0
 # - text-builder-linear == 0.1
 

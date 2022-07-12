@@ -1,45 +1,71 @@
 # AleA
 아래아
 
+## 철학 ?
+- 동작은 짧게
+- 명시는 엄밀하게
+- 기교는 최대로
+
 ## System grammar
 ```lisp
-; basic function call
-(void-f)
-(unary-f arg)
-(binary-f arg1 arg2)
-
-; with gydr & gydi
-(gydr-f :gydr gydi)
-(gydrs-f
-  :gydr1 gydi1
-  :gydr2 gydi2 )
+@cnt => Countable ( is array/list? )
+@cpt => Compile-Time constraint
+        the codes are only generated just once at compile time
+@len => the type, kind of length
+@udf => Undefined yet
+@foreign(tps) => Explicit foreign type
 
 ; optional parameters
 ; equivalant to:
-; (printf: &!cpt Int
-;   v1: (...) v2: (...) v3: (...) ...)
-; (any: &cpt) means
-; following arguments of function `print`
+; (defun printf : (v1: &cpt v1_t) -> (v2: &cpt v2_t) -> (vN: &cpt vN_t) -> &IO Int
+;   ...  )
+; (? : &cpt t) means
+; the type of following arguments of function
 ; should be compile-time type
 ; And of course, AleA can be dependent type
-(printf: &!cpt Int
-  { (v: &cpt ?) })
 
-; Types, which are used in parameter
-; by caller/callee
-var: type
-arr: [type]
-foo: &cpt type    ; == compile-time type
-bar: [|cpt type]  ; == constexpr array type
-baz: &!cpt type   ; == io type (maybe unoptimized)
+(type= IO !cpt)
+
+(defun unfold_t : (argName : String) (argTypes : [@type ?]) -> [(@arg, @type)]
+  for (i, type) of (zipN argTypes) (
+    ((@arg argName#(+ i 1)), (@type type))
+  ) )
+
+;;;
+
+(defun zip
+  : forall a b (l, (== len (a' : @udf [?]).
+  => (a' : [a]) (b' : @l [b]) -> @l [(a, b)]
+  [ for i of l where (a'::i, b'::i) ]. )
+
+; binary function
+(defun (<:>)
+  : forall a b (l, (== len (as : @udf [?])) ).
+  => (as : [a]) (bs : @l [b]) -> ([(a, b)] : @l ?)
+  zip as bs. )
+
+(defun printf : (s : String) (vs : [ a1.. ] <:> { _ : @show ? }) -> @IO Int
+  (\(a, b). a < 0 ? a : puts b) : @IO Int / sprintf s vs. )
+
+; int sprintf(const char *, const char *, ...)
+(defun sprintf
+  : (s : String) (vs : { v : @show ? }) -> (int, String)
+  (s' : @CC(const char *) ) = ""
+  flag = (sprintf : @CC(const char *, const char *, ... -> int) )
+          / s' (s : @CC(const char *)) (vs : @CC(v))
+  (flag, s'). )
+
+(defun puts : (s : String) -> Bool
+  s' = (s : @CC(const char *))
+  (r : @CC(int)) = (puts : @CC(const char * -> int)) s'
+  r >= 0.
+)
 
 ; Type signature
 (__df
   :from (?:[|cpt any])
   :to (?:[|cpt any])
   { ; optional gydr/gydis
-    :in-scope-of (? : (? :return-type= Bool))
-    ; or
     :in-scope-of (? : ?.. -> Bool)
     :system (? : (? : ))
    })
