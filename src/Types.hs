@@ -1,5 +1,4 @@
 -- {-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedStrings  #-}
 module Types where
 
 import Data.Char
@@ -41,4 +40,5 @@ data Expr
   | Idf       String
   | Function  BasicFunction
   | Operator  Op
+  | Ret       ()
   deriving (Eq, Ord, Show)

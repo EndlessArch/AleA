@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Main where
 
 import Data.Text hiding
@@ -7,16 +9,13 @@ import Data.Text hiding
 import LLVM.Core
 import LLVM.ExecutionEngine
 
-import Prelude hiding
-    ( null
-    )
-
 import System.Process
 import System.IO
 
 import Options
 import Parser
 import PrettyLog
+import Types
 
 import Control.Monad
 import Data.Functor
@@ -44,8 +43,9 @@ mainLoop m = do
         putStrLn "(EOF)\nTerminate."
         return m
     else
-      getLine >>= parse exprParser "stdin"
-        >>= \eith -> do
-          e <- eith
-          return . sayLn $ show e
-            >>= join . mainLoop m
+      do
+        line <- getLine
+        case parse exprParser "stdin" line of
+          Left err -> sayLn $ "Error: " ++ show err
+          Right expr -> sayLn $ show expr
+        mainLoop m
