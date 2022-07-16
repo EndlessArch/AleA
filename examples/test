@@ -1,0 +1,6 @@
+(defun someFunc : forall a. a -> a => )
+
+(defun puts
+  : forall
+  . (s : String) -> Bool =>
+  )

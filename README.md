@@ -26,22 +26,23 @@
 
 (type= IO !cpt)
 
-(defun unfold_t : (argName : String) (argTypes : [@type ?]) -> [(@arg, @type)]
-  for (i, type) of (zipN argTypes) (
-    ((@arg argName#(+ i 1)), (@type type))
-  ) )
+; (defun unfold_t : (argName : String) (argTypes : [@type ?]) -> [(@arg, @type)]
+;   for (i, type) of (zipN argTypes) (
+;     ((@arg argName#(+ i 1)), (@type type))
+;   ) )
 
 ;;;
 
 (defun zip
-  : forall a b (l, (== len (a' : @udf [?]).
-  => (a' : [a]) (b' : @l [b]) -> @l [(a, b)]
+  : forall a b (l, (== len (a' : @udf [?])
+  . (a' : [a]) (b' : @l [b]) -> @l [(a, b)]
+  =>
   [ for i of l where (a'::i, b'::i) ]. )
 
 ; binary function
 (defun (<:>)
-  : forall a b (l, (== len (as : @udf [?])) ).
-  => (as : [a]) (bs : @l [b]) -> ([(a, b)] : @l ?)
+  : forall a b (l, (== len (as : @udf [?])) )
+  . (as : [a]) (bs : @l [b]) -> ([(a, b)] : @l ?) =>
   zip as bs. )
 
 (defun printf : (s : String) (vs : [ a1.. ] <:> { _ : @show ? }) -> @IO Int
@@ -49,28 +50,36 @@
 
 ; int sprintf(const char *, const char *, ...)
 (defun sprintf
-  : (s : String) (vs : { v : @show ? }) -> (int, String)
+  : forall
+  . (s : String) (vs : { v : @show ? }) -> (int, String) =>
   (s' : @CC(const char *) ) = ""
   flag = (sprintf : @CC(const char *, const char *, ... -> int) )
           / s' (s : @CC(const char *)) (vs : @CC(v))
   (flag, s'). )
 
-(defun puts : (s : String) -> Bool
+; Function
+;   (Defun "puts"
+;     (Forall [])
+;     (Type [String, Bool])
+;     (Args [ (Idf "s") ])
+;     [ (NewVar [] (Idf "s\'") (@CC(const char *)) (Idf "s"))
+;       (NewVar (@CC((Idf int))) (Call (Function (Defun "puts" () () ()))))] )
+(defun puts : forall . (s : String) -> Bool =>
   s' = (s : @CC(const char *))
   (r : @CC(int)) = (puts : @CC(const char * -> int)) s'
   r >= 0.
 )
 
-; Type signature
-(__df
-  :from (?:[|cpt any])
-  :to (?:[|cpt any])
-  { ; optional gydr/gydis
-    :in-scope-of (? : ?.. -> Bool)
-    :system (? : (? : ))
-   })
+; ; Type signature
+; (__df
+;   :from (?:[|cpt any])
+;   :to (?:[|cpt any])
+;   { ; optional gydr/gydis
+;     :in-scope-of (? : ?.. -> Bool)
+;     :system (? : (? : ))
+;    })
 ```
-
+<!-- 
 ## Simple example/application
 ```lisp
 (__df
@@ -88,5 +97,5 @@
   :system (
 
   )
-)
+) -->
 ```

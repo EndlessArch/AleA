@@ -25,19 +25,31 @@ data Op
 
 data BasicFunction
   = Lambda [Tp] Expr
-  | DefineFunction Name Expr
+  | Defun String   -- Name
+          [Expr] -- Forall []
+          [Expr] -- Args []
+          [Expr] -- Codes []
   deriving (Eq, Ord, Show)
 
 data Tp
-  = IntT | FloatT | CharT | ArrayT Tp
-  | CustomT String
+  = IntT | FloatT | CharT | BoolT | ArrayT Tp
+  | CurryT [Expr]
+  | CustomT String Expr
+  deriving (Eq, Ord, Show)
+
+data Val
+  = Int   Integer
+  | Float Double
   deriving (Eq, Ord, Show)
 
 data Expr
   = Type      Tp
-  | Int       Integer
-  | Float     Double
+  | Value     Val
   | Idf       String
+  | Var       String -- Idf
+              (Maybe Expr) -- Type
+              (Maybe Expr) -- Value
+  | Args      [Expr]
   | Function  BasicFunction
   | Operator  Op
   | Ret       ()

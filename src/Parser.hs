@@ -1,98 +1,146 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
+{-# LANGUAGE BlockArguments #-}
 module Parser where
 
-import Control.Exception (Exception, throwIO)
 import Data.Functor
-import qualified Data.List as List
-import Data.Maybe
-import Data.Text hiding
-  ( any
-  , map
-  )
-import Data.Tuple.Extra
-import Prelude hiding
-  ( all
-  , drop
-  , elem
-  , head
-  , init
-  , last
-  , length
-  , tail
-  )
-import Text.Read
 
-import Text
 import Types
 import PrettyLog
 import ListUtil
 
 import Text.Builder
-import Data.Functor.Identity (Identity)
 import Text.Megaparsec as M
 import Text.Megaparsec.Char as M
-    ( alphaNumChar, char, digitChar, string )
-import Control.Monad (join)
+    ( alphaNumChar, char, digitChar, string, space, space1, letterChar, symbolChar, punctuationChar )
 import Data.Void
-import Text.Megaparsec.Error.Builder (utok, err)
 
-type MParser = ParsecT Void String Identity
+type MParser = Parsec Void String
 
--- defunParser ::MParser Expr
--- defunParser = try $ do
---   M.char '('
---   M.string "defun"
---   let idf = idfParser
---   M.char ':'
---   where
---     faKeywordParser :: MParser Expr
---     faKeywordParser = try $ do
---       M.string "forall"
+defunParser :: MParser Expr
+defunParser = try $ do
 
---     -- a.
---     -- (a, (unary closure)).
---     -- (a : (type expression), (unary closure)).
---     -- forall Type Variable Definition Parser
---     faTVDefParser :: MParser (String, Expr)
---     faTVDefParser = do
---       let name = idfStringParser
---       (pp tvSpecParser (return . try $ M.char '.'))
---       where
---         tvSpecParser :: MParser Expr
---         tvSpecParser =
---           (tvExplicitTypeParser dotP) <|> (tvAssignParser <&> dotP)
---           <|> dotP
---           where
---             tvExplicitTypeParser :: MParser Tp
---             tvExplicitTypeParser = try $ do
---               M.char ':'
---               pp typeDefParser
+  let funcNameParser = (idfStringParser <|>) $
+        try
+          (many (symbolChar <|> punctuationChar
+            -- <|> M.oneOf [
+            --   '!', '@', '#', '$', '%', '^',
+            --   '&', '*', '_', '?', ':', '~'
+            --   ]
+              ) >>= \s -> return s)
 
---             tvAssignParser :: MParser Expr
---             tvAssignParser = try $ do
---               M.char ','
---               pp exprParser
+  -- (defun someFunc : forall ~. ~ -> ~ => ~ )
+  -- ^~~~~~~~~~~~~~^
+  M.char '(' >> space >> M.string "defun" >> space1
+  idf <- funcNameParser
 
---             dotP :: MParser Void
---             dotP = try $ M.char '.'
+  do
+    -- (defun someFunc : forall ~. ~ -> ~ => ~ )
+    --                 ^~~~~~~~~~^
+    space >> M.char ':' >> space
 
--- pp :: MParser a -> MParser a
--- pp p = try $ do
---   (parenParser :: MParser a) <|> p
---   where
---     parenParser :: MParser a
---     parenParser = try $ do
---       M.char '('
---       p' <- pp p
---       M.char ')'
---       return p'
+    let
+      -- (~ : forall . ~ -> ~ => ~ )
+      --      ^~~~~~~^
+      emptyFA = try $ M.string "forall" >> space >> "." $> []
 
+      -- (~ : forall a (b : b_t) (c: c_t, c_v). ~~
+      --      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+      nonEmptyFA =
+        let tvParser = pp argParser
+        in try $ do
+          M.string "forall"
+          (many (space1 *> tvParser) <* M.char '.')
+            <|> (M.char '.' $> [])
+
+    tpdfs <- nonEmptyFA <|> emptyFA
+
+    -- (defun ~ : ~ . ~ -> ~ => ~ )
+    --               ^~~~~~~^
+    args <- space *> many (pp argParser)
+    ret <- space *> M.string "->" *> space *> pp typeExprParser
+
+    -- (defun ~ : ~ . ~ -> ~ => ~ )
+    --                       ^~~~^
+    exprs <- space *> M.string "=>" *> space
+      *> some (pp exprParser <|> (M.char ')' $> Ret ()))
+
+    return . Function $ Defun idf tpdfs (args ++ [ret]) exprs
+
+  where
+    -- a
+    -- a, (unary closure)
+    -- a : (type expression), (unary closure)
+    -- Type Variable Definition Parser
+    argParser :: MParser Expr
+    argParser =
+      do
+        name <- idfStringParser
+
+        tvParser name <|> return (Var name Nothing Nothing)
+      where
+        tvParser :: String -> MParser Expr
+        tvParser name =
+          let exprM =
+                tvTypeParser name
+                <|> tvValueParser name
+                -- <|> try (M.char '.' $> Var iName Nothing Nothing)
+          in
+            -- when `tvExplicitTypeParser` parsed,
+            -- tries parsing `tvAssigneParser`.
+            exprM >>= \expr ->
+              case expr of
+                (Var _ (Just tp) val) -> do
+                  assigned <- tvValueParser name
+                  case assigned of
+                    (Var _ _ (Just v)) ->
+                      return $ Var name (Just tp) (Just v)
+                    _ -> return expr
+                  <|> return expr
+                (Var _ Nothing _) -> return expr
+                _ -> return expr -- parsed sth unexpected
+          where
+            -- parse ": type-expression"
+            tvTypeParser :: String -> MParser Expr
+            tvTypeParser name = try $
+              do
+                space >> M.char ':' >> space >> do
+                  tp <- pp typeExprParser -- parse type-level expression
+                  return $ Var name (Just tp) Nothing
+
+            -- parse ", expression"
+            tvValueParser :: String -> MParser Expr
+            tvValueParser name = try $
+                do
+                  space >> M.char ',' >> space >> do
+                    val <- pp exprParser -- parse value-level expression
+                    return . Var name Nothing $ Just val
+
+typeExprParser :: MParser Expr
+typeExprParser = try $ do
+  s <- idfStringParser
+  return . Type $
+    case s of
+      "Int" -> IntT
+      "Float" -> FloatT
+      "Char" -> CharT
+      "Bool" -> BoolT
+      "String" -> ArrayT CharT
+      _ -> CustomT s $ Ret ()
+
+-- acts like strip, but removes parentheses
+pp :: forall a. MParser a -> MParser a
+pp p =
+  try (
+    (M.char '(' >> space >>) $
+      pp p <* (space >> M.char ')'))
+  <|> p
+  
 exprParser :: MParser Expr
-exprParser = try $ do
-  numberParser <|> idfParser
+exprParser = try $ numberParser <|> idfParser
   where
     numberParser :: MParser Expr
     numberParser = posParser <|> negParser
@@ -114,33 +162,24 @@ exprParser = try $ do
 
         posParser :: MParser Expr
         posParser = try $ do
-          fmap Float decParserD <|> fmap Int intParserI
+          fmap (Value . Float) decParserD <|> fmap (Value . Int) intParserI
 
         negParser :: MParser Expr
         negParser = try $ do
           M.char '-'
-          fmap (Float . negate) decParserD <|> fmap (Int . negate) intParserI
+          fmap (Value . Float . negate) decParserD
+            <|> fmap (Value . Int . negate) intParserI
 
     retParser :: MParser Expr
     retParser = try $ do
       M.char '.'
       return $ Ret ()
 
--- idfStringParser :: MParser String
--- idfStringParser = try $ do
---   fst <- alphaNumChar
---   tail <- many alphaNumChar
---   return $ fst:tail
-
--- idfParser :: MParser Expr
--- idfParser = Idf <$> idfStringParser
+idfStringParser :: MParser String
+idfStringParser = try $ do
+  fst <- letterChar
+  tail <- many alphaNumChar
+  return $ fst:tail
 
 idfParser :: MParser Expr
-idfParser = try $ do
-  let tok = many alphaNumChar
-  str <- tok
-  if Prelude.null str
-     then do
-       off <- getOffset
-       err off (utok tok)
-  else str
+idfParser = Idf <$> idfStringParser

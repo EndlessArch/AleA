@@ -1,17 +1,12 @@
 packages:
 - .
 
-allow-newer: false
+allow-newer: true
 
 extra-deps:
-# - llvm-tf-12.0.0.1@sha256:7907c46c5100d444b3b229dc5c673c84fbe9189bb3d599a60182bf620daeeda5,6417
 - llvm-ffi-13.0@sha256:b2256a958e57e95b0a95db72c69e0eb6a82837043eae00c9778ba09bbd460d31,12386
 - llvm-tf
 
-# - git: https://github.com/Bodigrim/linear-builder
-#   commit: 565410063c47556a86e7da244b99e0536f01037e
+# LH
 
-# - text-2.0@sha256:86e64bc76fefb8f0f6529d28ddf24b2a29d43591a8b9b7c7094f481a0db2fb7d,7788
-# - text-builder-linear-0.1@sha256:639a01f53e4cabc1d0f5b399373317c2c72507d6c3a17f1596044ce1dd590cab,2174
-
-resolver: lts-19.12
+resolver: lts-19.15
