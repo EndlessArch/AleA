@@ -24,7 +24,7 @@ dependencies:
 - containers
 - extra
 - haskeline
-# - liquidhaskell
+- liquidhaskell
 - llvm-tf
 - megaparsec
 - pretty
@@ -49,6 +49,10 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    # - -fplugin=LiquidHaskell
+    - +RTS
+    - -M2G
+    - -RTS
     dependencies:
     - AleA
 

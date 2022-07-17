@@ -25,7 +25,7 @@ data Op
 
 data BasicFunction
   = Lambda [Tp] Expr
-  | Defun String   -- Name
+  | Defun String -- Name
           [Expr] -- Forall []
           [Expr] -- Args []
           [Expr] -- Codes []

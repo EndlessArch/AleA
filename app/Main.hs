@@ -1,13 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Main where
-
-import Data.Text hiding
-    ( head
-    )
 
 import LLVM.Core
 import LLVM.ExecutionEngine
@@ -22,6 +17,7 @@ import Types
 
 import Control.Monad
 import Data.Functor
+import qualified Language.Haskell.Liquid.GHC.API as GHC
 import System.Console.Haskeline
   (runInputT, Settings (Settings, historyFile, autoAddHistory, complete), InputT, noCompletion, getInputLine, outputStrLn)
 import System.Environment
@@ -31,7 +27,7 @@ import Text.Megaparsec
 getName = "AleA" :: String
 getVersion = "1.0.0" :: String
 
-main :: IO [()]
+main :: IO ()
 main = do
     -- system "clear"
     -- putStrLn $ craftDisplayText "[ Powered by Macro ]"
@@ -54,7 +50,9 @@ main = do
           f (a, Right b) = [Right b]
           f (a, b) = (b:) . f $ argParser a
 
-          g :: {- NonEmpty -} [(String, String)] -> (String, String)
+          -- g :: {- NonEmpty -} [(String, String)] -> (String, String)
+          {-@ type NEStringTuple = { v : [(String, String)] | 0 < size v} @-}
+          {-@ g :: NEStringTuple -> (String, String) @-}
           g ((a, ""):("", d):x) = g $ (a, d):x
           g ((a, ""):(c, d):x) = g $ (c, d):x
           g (("", b):(c, ""):x) = g $ (c, b):x
@@ -86,17 +84,18 @@ main = do
             complete = noCompletion,
             historyFile = Nothing,
             autoAddHistory = True
-          } $ mainLoop m
-          return [()]
-      ("", _) -> return [()] <$ putStrLn $ getName ++ ": No input file specified."
+          } $ mainLoop m $> ()
+      ("", _) -> putStrLn $ getName ++ ": No input file specified."
       (src, dst) -> do
         h <- openFile src ReadMode
         c <- hGetContents h
-        case parse (many defunParser) src c of
+        case runParser (many defunParser) src c of
           Left e ->
-            return [()] <$ putStrLn $ getName ++ ": Compile error;\n" ++ errorBundlePretty e
-          Right es ->
-            mapM (\e -> putStrLn $ getName ++ ": " ++ show e) es
+            putStrLn $ getName ++ ": Compile error;\n" ++ errorBundlePretty e
+          Right e -> putStrLn $ getName ++ ": " ++ show e
+
+          -- Right es ->
+          --   mapM (\e -> putStrLn $ getName ++ ": " ++ show e) es
 
 mainLoop :: Module -> InputT IO Module
 mainLoop m = do

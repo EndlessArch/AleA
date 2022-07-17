@@ -1,12 +1,14 @@
 packages:
 - .
-
 allow-newer: true
-
 extra-deps:
 - llvm-ffi-13.0@sha256:b2256a958e57e95b0a95db72c69e0eb6a82837043eae00c9778ba09bbd460d31,12386
 - llvm-tf
 
-# LH
+- git: https://github.com/ucsd-progsys/liquidhaskell.git
+  commit: c2784c8e1bbda6614578b2604cdc0b707c0afcb4
+- git: https://github.com/ucsd-progsys/liquid-fixpoint.git
+  commit: 348676ab3f5428bf17407abbb3768111f20c569b
+- rest-rewrite-0.4.0@sha256:be93d899f7dece33f2a7613eb3dabd24d139f9cb2fc09f9efedfdce4ba6eb276,3923
 
 resolver: lts-19.15

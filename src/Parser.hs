@@ -10,7 +10,6 @@ import Data.Functor
 
 import Types
 import PrettyLog
-import ListUtil
 
 import Text.Builder
 import Text.Megaparsec as M

@@ -25,11 +25,9 @@ source-repository head
 
 library
   exposed-modules:
-      ListUtil
       Options
       Parser
       PrettyLog
-      Text
       Types
   other-modules:
       Paths_AleA
@@ -40,6 +38,7 @@ library
     , containers
     , extra
     , haskeline
+    , liquidhaskell
     , llvm-tf
     , megaparsec
     , pretty
@@ -56,13 +55,14 @@ executable alea
       Paths_AleA
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N +RTS -M2G -RTS
   build-depends:
       AleA
     , base >=4.7 && <5
     , containers
     , extra
     , haskeline
+    , liquidhaskell
     , llvm-tf
     , megaparsec
     , pretty
@@ -86,6 +86,7 @@ test-suite alea-test
     , containers
     , extra
     , haskeline
+    , liquidhaskell
     , llvm-tf
     , megaparsec
     , pretty
