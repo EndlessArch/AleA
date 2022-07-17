@@ -7,15 +7,24 @@ trigger:
 - main
 
 pool:
-  vmImage: arch-latest
+  vmImage: ubuntu-latest
 
 steps:
-- script: stack build
-  displayName: 'Simply build project via stack'
+- script: |
+    mkdir -p ~/.local/bin
+    curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  displayName: Install Stack
+- script: |
+    export PATH=$HOME/.local/bin:$PATH
+    stack --install-ghc build --only-dependencies
+  displayName: Build Dependencies
+- script: |
+    export PATH=$HOME/.local/bin:$PATH
+    # Build the package, its tests, and its docs and run the tests
+    stack build --haddock --no-haddock-deps
+  displayName: Build Executable
 
 - script: |
-    # echo Add other tasks to build, test, and deploy your project.
-    # echo See https://aka.ms/yaml
     stack run -- -v
     stack run -- -s examples/test
-  displayName: 'Test example codes'
+  displayName: Test Examples
