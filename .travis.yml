@@ -1,6 +1,0 @@
-language: haskell
-os:
-- osx
-- linux
-ghc:
-- "9.0.2"
