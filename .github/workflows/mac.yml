@@ -27,6 +27,7 @@ jobs:
         brew install llvm@13
     - name: Install dependencies
       run: |
+        stack setup --reinstall
         stack build --only-dependencies
     - name: Build
       run: stack build
