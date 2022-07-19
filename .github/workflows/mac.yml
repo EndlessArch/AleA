@@ -27,11 +27,10 @@ jobs:
         brew install llvm@13
     - name: Install dependencies
       run: |
-        stack setup --reinstall
-        stack build --only-dependencies
+        stack --system-ghc build --only-dependencies --fast 
     - name: Build
       run: stack build
     - name: Run examples
       run: |
-        stack run -- -v
-        stack run -- -s examples/test
+        stack --system-ghc run -- -v
+        stack --system-ghc run -- -s examples/test
