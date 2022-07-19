@@ -24,7 +24,7 @@ jobs:
     
     - name: Install required packages
       run: |
-        brew install llvm@13
+        brew install llvm@12
     - name: Install dependencies
       run: |
         stack --system-ghc build --only-dependencies --fast 
